@@ -4,7 +4,7 @@ delegate is a lightweight `std::function` that only keeps a reference to the tar
 
 # Why do we need yet another delegate?
 All other existing implementations going for the same use case all have unwieldly
-interfaces, as well as not being even remotely similar to std::function. delegate aims to be almost drop-in replaceable with `std::function`. Unless otherwise noted, delegate has the exact same interface as `std::function`.
+interfaces, as well as not being even remotely similar to `std::function`. delegate aims to be almost drop-in replaceable with `std::function`. Unless otherwise noted, delegate has the exact same interface as `std::function`.
 
 # Remarks
 delegate is designed to be efficient, it only has an extra branch compared to
