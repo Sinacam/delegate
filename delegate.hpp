@@ -5,7 +5,7 @@
     All other existing implementations going for the same use case all have unwieldly
     interfaces, as well as not being even remotely similar to std::function.
     delegate aims to be almost drop-in replaceable with std::function. Unless otherwise
-    noted, delegate has the exact same interface as std::function.
+    noted, delegate has the exact same interface and semantics as std::function.
 
     delegate is designed to be efficient, its only overhead in calling functors is the compiler
     not being able to inline the calls.
