@@ -7,8 +7,8 @@
     delegate aims to be almost drop-in replaceable with std::function. Unless otherwise
     noted, delegate has the exact same interface as std::function.
 
-    delegate is designed to be efficient, it only has an extra branch compared to
-    directly calling the callable object.
+    delegate is designed to be efficient, its only overhead in calling functors is the compiler
+    not being able to inline the calls.
 
     delegate is cheap to copy, it should typically be passed by value.
 
@@ -21,6 +21,11 @@
     Different delegates can't be converted even if sufficiently similar, wrap in a lambda instead.
 
     is_delegate and is_delegate_v checks whether a type is a delegate.
+
+    When wrapping function pointers with delegate, check if the platform supports casting a function pointer
+    to void*.
+
+    Requires C++17.
 */
 
 #ifndef DELEGATE_HPP_INCLUDED
@@ -56,23 +61,16 @@ class delegate<R(Args...)>
     template <typename T,
               std::enable_if_t<std::is_function_v<T> && std::is_invocable_r_v<R, T, Args&&...>,
                                bool> = true>
-    delegate(T* t) : obj{}, f{decltype(f)(t)}
+    delegate(T* t) : obj{(void*)t}, f{invoker<T>}
     {
-        // Coerce the function pointer into f.
-        // This avoids an extra indirection.
+        static_assert(sizeof(void*) == sizeof(T*),
+                      "Platform doesn't support casting function pointer to void*");
     }
 
     template <typename T, std::enable_if_t<std::is_invocable_r_v<R, T, Args&&...> &&
                                                !is_delegate_v<std::remove_cv<T>>,
                                            bool> = true>
-    delegate(T& t)
-        : obj{&t}, f{[](void* obj, Args&... args) -> R {
-              auto& t = *(T*)obj;
-              if constexpr(std::is_void_v<R>)
-                  t(std::forward<Args>(args)...);
-              else
-                  return t(std::forward<Args>(args)...);
-          }}
+    delegate(T& t) : obj{&t}, f{invoker<T>}
     {
     }
 
@@ -80,24 +78,10 @@ class delegate<R(Args...)>
     auto operator()(Ts&&... ts)
         -> std::enable_if_t<std::is_invocable_r_v<R, R(Args&...), Ts&&...>, R>
     {
-        // obj == nullptr indicates f is a function pointer and should be cast back and
-        // invoked directly.
-        // Skip check on f != nullptr because the function has no return statement
-        // and would be UB either way. Good optimizers will do this automatically anyways.
         if constexpr(std::is_void_v<R>)
-        {
-            if(obj != nullptr)
-                f(obj, ts...);
-            else
-                ((R(*)(Args & ...))(f))(ts...);
-        }
+            f(obj, ts...);
         else
-        {
-            if(obj != nullptr)
-                return f(obj, ts...);
-            else
-                return ((R(*)(Args & ...))(f))(ts...);
-        }
+            return f(obj, ts...);
     }
 
     operator bool() const noexcept { return f; }
@@ -109,6 +93,16 @@ class delegate<R(Args...)>
   private:
     void* obj;
     R (*f)(void*, Args&...);
+
+    template <typename T>
+    static R invoker(void* obj, Args&... args)
+    {
+        auto& t = *(T*)obj;
+        if constexpr(std::is_void_v<R>)
+            t(std::forward<Args>(args)...);
+        else
+            return t(std::forward<Args>(args)...);
+    }
 };
 
 namespace detail
