@@ -76,7 +76,7 @@ class delegate<R(Args...)>
 
     template <typename... Ts>
     auto operator()(Ts&&... ts)
-        -> std::enable_if_t<std::is_invocable_r_v<R, R(Args&...), Ts&&...>, R>
+        -> std::enable_if_t<std::is_invocable_r_v<R, R(Args&&...), Ts&&...>, R>
     {
         if constexpr(std::is_void_v<R>)
             f(obj, ts...);
