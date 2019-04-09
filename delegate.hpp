@@ -66,7 +66,7 @@ class delegate<R(Args...)>
                                                !is_delegate_v<std::remove_cv<T>>,
                                            bool> = true>
     delegate(T& t)
-        : obj{}, f{[](void* obj, Args&... args) -> R {
+        : obj{&t}, f{[](void* obj, Args&... args) -> R {
               auto& t = *(T*)obj;
               if constexpr(std::is_void_v<R>)
                   t(std::forward<Args>(args)...);
