@@ -84,7 +84,7 @@ class delegate<R(Args...)>
             return f(obj, ts...);
     }
 
-    operator bool() const noexcept { return f; }
+    explicit operator bool() const noexcept { return f; }
 
     bool operator==(const delegate& rhs) const noexcept { return obj == rhs.obj && f == rhs.f; }
 
