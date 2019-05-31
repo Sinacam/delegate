@@ -116,16 +116,6 @@ class delegate<R(Args...)>
     void* obj;
     R (*f)(void*, Args&...);
 
-    template <typename T>
-    static R invoker(void* obj, Args&... args)
-    {
-        auto& t = *(T*)obj;
-        if constexpr(std::is_void_v<R>)
-            t(std::forward<Args>(args)...);
-        else
-            return t(std::forward<Args>(args)...);
-    }
-
     friend class std::hash<delegate>;
 };
 
@@ -280,7 +270,7 @@ namespace delegate_detail
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, objp, [](void* p, auto&... args) -> R {            \
+                ::delegate_detail::tag<void>{}, (void*)objp, [](void* p, auto&... args) -> R {            \
                     auto& o = *(decltype(objp))p;                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         o(::std::forward<typename decltype(arg_tags)::type>(args)...);             \
@@ -297,7 +287,7 @@ namespace delegate_detail
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, objp, [](void* p, auto&... args) -> R {            \
+                ::delegate_detail::tag<void>{}, (void*)objp, [](void* p, auto&... args) -> R {            \
                     auto& o = *(decltype(objp))p;                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         o.memfn(::std::forward<typename decltype(arg_tags)::type>(args)...);       \
