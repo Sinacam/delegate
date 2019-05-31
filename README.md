@@ -36,7 +36,7 @@ delegate<int()> d = CBIND(std::array{1, 2}, size);
 Free functions may be overloaded with `CBIND`.
 
 ### `R operator(Args...)`
-Calls the referenced target chosen by overload resolution with given arguments. The arguments are forwarded in the same way as std::fucntion.
+Calls the referenced target chosen by overload resolution with given arguments. The arguments are forwarded in the same way as `std::function`.
 
 ### `operator==` `operator!=`
 Compares two delegates for equality. Different delegate targets is guaranteed to compare unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether two binds with the same target compares equal.

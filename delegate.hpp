@@ -32,7 +32,7 @@
 
     R operator(Args...)
         Calls the referenced target chosen by overload resolution with given arguments.
-        The arguments are forwarded in the same way as std::fucntion.
+        The arguments are forwarded in the same way as std::function.
 
     operator==
     operator!=
