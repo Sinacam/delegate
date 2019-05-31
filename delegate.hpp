@@ -26,7 +26,7 @@
         The same as BIND but only usable when its arguments are constexpr. The target object need
         not be kept alive in this case.
 
-            delegate<void(int)> d = CBIND(std::array{1, 2}, size);
+            delegate<int()> d = CBIND(std::array{1, 2}, size);
 
         Free functions may be overloaded with CBIND.
 
