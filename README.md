@@ -9,7 +9,7 @@ d(42);    // equivalent to v.emplace_back(42);
 
 # Documentation
 
-## `BIND`
+### `BIND`
 Binds its argument as an anonymous type that can be used to initialize any delegate with a suitably similar signature. The rules of similarity follows that of `std::function`.
 
 `BIND` can bind a member function
@@ -24,21 +24,20 @@ or a free function
 delegate<std::string(int)> d = BIND(std::to_string);
 ````
 
-## `CBIND`
+### `CBIND`
 The same as `BIND` but only usable when its arguments are `constexpr`. The target object need not be kept alive in this case.
 
 ````c++
 delegate<void(int)> d = CBIND(std::array{1, 2}, size);
 ````
 
-## `R operator(Args...)`
+### `R operator(Args...)`
 Calls the referenced target chosen by overload resolution with given arguments. The arguments are forwarded in the same way as std::fucntion.
 
-## `operator==`
-## `operator!=`
+### `operator==` `operator!=`
 Compares two delegates for equality. Different delegate targets is guaranteed to compare unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether two binds with the same target compares equal.
 
-## `std::hash`
+### `std::hash`
 Specialization of hash that is compatible with equality. Given a hash object h and two delegates x and y:
 
 ````
@@ -46,7 +45,7 @@ Specialization of hash that is compatible with equality. Given a hash object h a
     (x != y) => h(x) != h(y) with high probability
 ````
 
-Remarks:
+# Remarks
 
 delegate is designed to be efficient, its only overhead in calling functors is the compiler not being able to inline the calls.
 
