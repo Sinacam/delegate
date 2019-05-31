@@ -18,13 +18,17 @@
 
         or a free function
 
-            delegate<std::string(int)> d = BIND(std::to_string);
+            delegate<void*(size_t)> d = BIND(std::malloc);
+
+        The free function may not be overloaded, prefer CBIND instead.
 
     CBIND
         The same as BIND but only usable when its arguments are constexpr. The target object need
         not be kept alive in this case.
 
             delegate<void(int)> d = CBIND(std::array{1, 2}, size);
+
+        Free functions may be overloaded with CBIND.
 
     R operator(Args...)
         Calls the referenced target chosen by overload resolution with given arguments.
