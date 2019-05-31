@@ -36,9 +36,9 @@
 
     operator==
     operator!=
-        Compares two delegates for equality. Different delegate targets is guaranteed to compare unequal.
-        The result of the same bind is guaranteed to compare equal. It is unspecified whether two binds
-        with the same target compares equal.
+        Compares two delegates for equality. Different delegate targets is guaranteed to compare
+   unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether
+   two binds with the same target compares equal.
 
     std::hash
         Specialization of hash that is compatible with equality. Given a hash object h and two
@@ -61,8 +61,8 @@
 #ifndef DELEGATE_HPP_INCLUDED
 #define DELEGATE_HPP_INCLUDED
 
+#include <cstdint>
 #include <utility>
-#include<cstdint>
 
 template <typename>
 class delegate;
@@ -131,7 +131,7 @@ class delegate<R(Args...)>
 
 namespace std
 {
-    template<typename F>
+    template <typename F>
     struct hash<delegate<F>>
     {
         // Stolen from boost::hash_combine
@@ -157,7 +157,7 @@ namespace std
             return h;
         }
     };
-}
+} // namespace std
 
 namespace delegate_detail
 {
