@@ -1,46 +1,55 @@
 /*
-    delegate is a lightweight std::function that only keeps a reference to the target,
-    and can be bound to arbitrary member functions.
+    delegate is a lightweight std::function that can be bound to arbitrary member functions
+    and only keeps a reference to the bound target, similar to C# delegates.
 
         std::vector<int> v;
         delegate<void(int)> d = BIND(v, emplace_back);
         d(42);    // equivalent to v.emplace_back(42);
 
     Documentation:
+    Let F denote a function type, e.g. int(double).
 
     BIND
-        Binds its argument as an anonymous type that can be used to initialize any delegate
+        Binds its arguments as an anonymous type that can be used to initialize any delegate
         with a suitably similar signature. The rules of similarity follows that of std::function.
 
         BIND can bind a member function
 
-            delegate<void(int)> d = BIND(int_vector, push_back);
+            std::vector<int> v;
+            delegate<void(int)> d = BIND(v, push_back);
 
         or a free function
 
-            delegate<void*(size_t)> d = BIND(std::malloc);
+            int frob(double);
+            delegate<int(double)> d = BIND(frob);
 
-        The free function may not be overloaded, prefer CBIND instead.
+        or any callable
+
+            auto foo = [&os = std::cout](auto... args) { (os << ... << args); };
+            delegate<void(int, int)> d = BIND(foo);
+
+        The delegate only keeps a reference to the first argument, which must be a lvalue.
+        Member functions may be overloaded, free functions may not.
 
     CBIND
-        The same as BIND but only usable when its arguments are constexpr. The target object need
-        not be kept alive in this case.
+        The same as BIND but only usable when the fisrt argument is constexpr.
+        The first argument need not be kept alive in this case.
 
             delegate<int()> d = CBIND(std::array{1, 2}, size);
 
         Free functions may be overloaded with CBIND.
 
-    R operator(Args...)
+    R delegate<F>::operator(Args...)
         Calls the referenced target chosen by overload resolution with given arguments.
         The arguments are forwarded in the same way as std::function.
 
-    operator==
-    operator!=
+    delegate<F>::operator==
+    delegate<F>::operator!=
         Compares two delegates for equality. Different delegate targets is guaranteed to compare
-   unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether
-   two binds with the same target compares equal.
+        unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether
+        two binds with the same target compares equal.
 
-    std::hash
+    std::hash<delegate<F>>
         Specialization of hash that is compatible with equality. Given a hash object h and two
         delegates x and y:
             (x == y) => h(x) == h(y)
@@ -48,12 +57,12 @@
 
     Remarks:
 
-    delegate is designed to be efficient, its only overhead in calling functors is the compiler
+    delegate is designed to be efficient, its overhead is usually only the compiler
     not being able to inline the calls.
 
     delegate is cheap to copy and trivially copyable, it should typically be passed by value.
 
-    Calling an empty delegate is undefined behaviour, it does __not__ throw an exception.
+    Calling empty or invalid delegates is undefined behaviour, it does __not__ throw an exception.
 
     delegate doesn't keep the referenced target alive, use std::function for that.
 */
@@ -62,6 +71,7 @@
 #define DELEGATE_HPP_INCLUDED
 
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 template <typename>
@@ -92,20 +102,16 @@ namespace delegate_detail
 template <typename R, typename... Args>
 class delegate<R(Args...)>
 {
+    using thunk_type = R(void*, Args&...);
+
   public:
     using result_type = R;
 
     delegate() noexcept : obj{}, f{} {}
 
-    delegate(delegate_detail::tag<void>, void* obj, R (*f)(void*, Args&...)) : obj{obj}, f{f} {}
+    delegate(delegate_detail::tag<void>, void* obj, thunk_type* f) : obj{obj}, f{f} {}
 
-    R operator()(Args... args)
-    {
-        if constexpr(std::is_void_v<R>)
-            f(obj, args...);
-        else
-            return f(obj, args...);
-    }
+    R operator()(Args... args) { return f(obj, args...); }
 
     explicit operator bool() const noexcept { return f; }
 
@@ -114,7 +120,7 @@ class delegate<R(Args...)>
 
   private:
     void* obj;
-    R (*f)(void*, Args&...);
+    thunk_type* f;
 
     friend class std::hash<delegate>;
 };
@@ -124,27 +130,20 @@ namespace std
     template <typename F>
     struct hash<delegate<F>>
     {
-        // Stolen from boost::hash_combine
         size_t operator()(delegate<F> d)
         {
             auto k = (uintptr_t)d.obj;
             auto h = (uintptr_t)d.f;
 
-            auto m = 0xc6a4a7935bd1e995;
-            int r = 47;
+            // Taken from
+            // https://stackoverflow.com/questions/5889238/why-is-xor-the-default-way-to-combine-hashes
+            // Licensed under CC-BY-SA 4.0
+            if constexpr(sizeof(size_t) >= 8)
+                k ^= h + 0x517cc1b727220a95 + (k << 6) + (k >> 2);
+            else
+                k ^= h + 0x9e3779b9 + (k << 6) + (k >> 2);
 
-            k *= m;
-            k ^= k >> r;
-            k *= m;
-
-            h ^= k;
-            h *= m;
-
-            // Completely arbitrary number, to prevent 0's
-            // from hashing to 0.
-            h += 0xe6546b64;
-
-            return h;
+            return k;
         }
     };
 } // namespace std
@@ -168,7 +167,7 @@ namespace delegate_detail
     };
 
     template <typename C, typename R, typename... Args>
-    struct call<R (C::*)(Args...)>
+    struct call<R (C::*)(Args...)> : call<R(Args...)>
     {
     };
 
@@ -227,6 +226,71 @@ namespace delegate_detail
     {
     };
 
+    template <typename R, typename... Args>
+    struct call<R(Args...) noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) volatile noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const volatile noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) & noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const & noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) volatile & noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const volatile & noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) && noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const && noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) volatile && noexcept> : call<R(Args...)>
+    {
+    };
+
+    template <typename C, typename R, typename... Args>
+    struct call<R (C::*)(Args...) const volatile && noexcept> : call<R(Args...)>
+    {
+    };
+
     template <typename F>
     struct call<delegate<F>> : call<F>
     {
@@ -259,18 +323,25 @@ namespace delegate_detail
     };
 
     template <typename Lambda>
-    init(Lambda &&)->init<Lambda>;
+    init(Lambda&&) -> init<Lambda>;
 
 } // namespace delegate_detail
 
 #define BIND1(obj)                                                                                 \
     ::delegate_detail::init                                                                        \
     {                                                                                              \
-        [objp = &obj](auto delegate_tag, auto... arg_tags) {                                       \
+        [objp = &obj](auto delegate_tag, auto... arg_tags)                                         \
+        {                                                                                          \
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
+            constexpr auto is_function =                                                           \
+                ::std::is_function_v<::std::remove_pointer_t<decltype(objp)>>;                     \
+            static_assert(!is_function || sizeof(void*) == sizeof(void (*)()),                     \
+                          "cannot capture free function with BIND");                               \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, (void*)objp, [](void* p, auto&... args) -> R {            \
+                ::delegate_detail::tag<void>{}, (void*)objp,                                       \
+                [](void* p, auto&... args) -> R                                                    \
+                {                                                                                  \
                     auto& o = *(decltype(objp))p;                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         o(::std::forward<typename decltype(arg_tags)::type>(args)...);             \
@@ -283,11 +354,14 @@ namespace delegate_detail
 #define BIND2(obj, memfn)                                                                          \
     ::delegate_detail::init                                                                        \
     {                                                                                              \
-        [objp = &obj](auto delegate_tag, auto... arg_tags) {                                       \
+        [objp = &obj](auto delegate_tag, auto... arg_tags)                                         \
+        {                                                                                          \
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, (void*)objp, [](void* p, auto&... args) -> R {            \
+                ::delegate_detail::tag<void>{}, (void*)objp,                                       \
+                [](void* p, auto&... args) -> R                                                    \
+                {                                                                                  \
                     auto& o = *(decltype(objp))p;                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         o.memfn(::std::forward<typename decltype(arg_tags)::type>(args)...);       \
@@ -301,11 +375,14 @@ namespace delegate_detail
 #define CBIND1(obj)                                                                                \
     ::delegate_detail::init                                                                        \
     {                                                                                              \
-        [](auto delegate_tag, auto... arg_tags) {                                                  \
+        [](auto delegate_tag, auto... arg_tags)                                                    \
+        {                                                                                          \
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, nullptr, [](void* p, auto&... args) -> R {         \
+                ::delegate_detail::tag<void>{}, nullptr,                                           \
+                [](void*, auto&... args) -> R                                                      \
+                {                                                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         obj(::std::forward<typename decltype(arg_tags)::type>(args)...);           \
                     else                                                                           \
@@ -317,11 +394,14 @@ namespace delegate_detail
 #define CBIND2(obj, memfn)                                                                         \
     ::delegate_detail::init                                                                        \
     {                                                                                              \
-        [](auto delegate_tag, auto... arg_tags) {                                                  \
+        [](auto delegate_tag, auto... arg_tags)                                                    \
+        {                                                                                          \
             using Delegate = typename decltype(delegate_tag)::type;                                \
             using R = ::delegate_detail::call_r_t<Delegate>;                                       \
             return Delegate{                                                                       \
-                ::delegate_detail::tag<void>{}, nullptr, [](void* p, auto&... args) -> R {         \
+                ::delegate_detail::tag<void>{}, nullptr,                                           \
+                [](void*, auto&... args) -> R                                                      \
+                {                                                                                  \
                     if constexpr(::std::is_void_v<R>)                                              \
                         obj.memfn(::std::forward<typename decltype(arg_tags)::type>(args)...);     \
                     else                                                                           \
