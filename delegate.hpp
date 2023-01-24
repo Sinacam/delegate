@@ -49,6 +49,9 @@
         unequal. The result of the same bind is guaranteed to compare equal. It is unspecified whether
         two binds with the same target compares equal.
 
+    delegate<F>::operator bool
+        Returns whether the delegate is empty (default constructed).
+
     std::hash<delegate<F>>
         Specialization of hash that is compatible with equality. Given a hash object h and two
         delegates x and y:
@@ -57,8 +60,7 @@
 
     Remarks:
 
-    delegate is designed to be efficient, its overhead is usually only the compiler
-    not being able to inline the calls.
+    delegate is designed to be efficient, its overhead is an extra function call.
 
     delegate is cheap to copy and trivially copyable, it should typically be passed by value.
 
